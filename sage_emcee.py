@@ -12,24 +12,19 @@ logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S
 logger.setLevel(logging.DEBUG)
 sys.path.insert(0, '/home/msinha/research/codes/sage-home/sage-model/')
 
-rank = 0
-ntasks = 1
-comm = None
-try:
-    from mpi4py import MPI
-    pool_type = 'mpi4py'
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    ntasks = comm.Get_size()
-except ImportError:
-    import multiprocessing
-    ntasks = multiprocessing.cpu_count()
-    pool_type = 'multiprocessing'
+def add_local_sage_path(sage_libpath=None):
+    import os
+    import sys
+    if not sage_libpath:
+        sage_libpath = os.path.abspath(os.path.abspath(__file__) + "/../sage-model")
 
+    logger.info(f"Adding sage library path = {sage_libpath}")
+    sys.path.insert(0, sage_libpath)
 
-def compile_sage_pythonext():
+def compile_sage_pythonext(sage_libpath=None):
     ## assumes that the root of the sage repo is in PATH
     ## **and** sage.py is in the root of the sage repo
+    add_local_sage_path(sage_libpath)
     from sage import build_sage_pyext
     logger.info("Building SAGE python extension")
     build_sage_pyext(use_from_mcmc=True, verbose=True)
@@ -224,12 +219,6 @@ def read_sage_parameterfile(param_file):
 
 def write_sage_parameter_file(input_dict, outputfile, extra_params_dict):
 
-    # # input_dict = read_sage_parameterfile(input_param_template)
-
-    # Create a random directory name for the output files
-    dirname = path.abspath(mkdtemp(dir='.'))
-    input_dict['OutputDir'] = dirname
-
     # Determine what the maximum length of a key is
     max_len = max(map(len, input_dict))
 
@@ -241,11 +230,8 @@ def write_sage_parameter_file(input_dict, outputfile, extra_params_dict):
     # Convert input_data to a single string
     input_data = '\n'.join(input_data)
 
-    # Get temporary file name
-    filename = path.join(dirname, outputfile)
-
-    # Create temporary file
-    with open(filename, 'w') as f:
+    # Create the output parameter file
+    with open(outputfile, 'w') as f:
         # Write input_data to this file
         f.write(input_data)
 
@@ -254,14 +240,12 @@ def write_sage_parameter_file(input_dict, outputfile, extra_params_dict):
 
     import fileinput
     import os
-    for line in fileinput.FileInput(filename, inplace=True):
+    for line in fileinput.FileInput(outputfile, inplace=True):
         if line.startswith('NumOutputs'):
             line += "-> " + snapshot_string + os.linesep
         print(line, end="")
 
-    # Return created filename
-    # logger.debug(f"[rank = {rank}] Created parameter file = {filename}")
-    return (filename, dirname)
+    return
 
 
 
@@ -318,7 +302,6 @@ def read_and_bin_sage_output(sage_output_file, log_bins, sage_params_dict, *, co
     # print(f"Mass conversion factor -> Msun = {massunits_in_msun}")
 
     fullhist = np.zeros((len(log_bins)-1), dtype=np.int64)
-    if sage_params_dict['OutputFormat'] == 'sage_hdf5':
     with h5py.File(sage_output_file, 'r') as hf:
         numcores = hf['Header/Misc'].attrs['num_cores']
         for icore in range(numcores):
@@ -370,6 +353,9 @@ def log_priors(theta, **kwargs):
 
     return 0.0
 
+@functools.cache
+def create_workdir(outputdir):
+    return mkdtemp(dir=outputdir)
 
 def log_probability(theta, *args, **kwargs):
     lp = log_priors(theta, **kwargs)
@@ -380,12 +366,8 @@ def log_probability(theta, *args, **kwargs):
 
 
 def log_likelihood(theta, *args, **kwargs):
-    start = time.time()
     from _sage_cffi import ffi, lib
-    if kwargs['pool_type'] == 'multiprocessing':
-        global rank
-        rank = get_rank_from_mpx()
-        print(f"rank from multiprocessing = {rank}")
+    # start = time.time()
 
     sage_rank = 0
     sage_ntasks = 1
@@ -396,18 +378,22 @@ def log_likelihood(theta, *args, **kwargs):
         # print(f"For param = {p}, replacing {sage_params_dict[p]} with {v}")
         sage_params_dict[p] = v
 
-    paramfile, dirname = write_sage_parameter_file(sage_params_dict, f"sage_params_{sage_rank}.par", extra_params_dict)
+    outputdir = kwargs['outputdir']
+    workdir = create_workdir(outputdir)
+    sage_params_dict['OutputDir'] = workdir
+    paramfile = f"{workdir}/sage_params_{sage_rank}.par"
+    write_sage_parameter_file(sage_params_dict, paramfile, extra_params_dict)
 
     # Get params ready for cffi to run sage
     params_struct = ffi.new("void **")
     fname = ffi.new("char []", paramfile.encode())
 
-    # logger.info(f"Running sage on rank = {rank}")
+    # logger.info(f"Running sage ...")
     # sage_start = time.time()
     lib.run_sage(sage_rank, sage_ntasks, fname, params_struct)
     lib.finalize_sage(params_struct[0])
     # sage_end = time.time()
-    # logger.info(f"Running sage on rank = {rank}...done. Time taken = {sage_end-sage_start:0.1f} sec")
+    # logger.info(f"Running sage ...done. Time taken = {sage_end-sage_start:0.1f} sec")
 
     logmass = kwargs['logmass']
     obs_numden = kwargs['obs_numden']
@@ -415,7 +401,7 @@ def log_likelihood(theta, *args, **kwargs):
     bin_edges = kwargs['bin_edges']
     bin_widths = kwargs['bin_widths']
 
-    sage_output_file = f"{dirname}/{sage_params_dict['FileNameGalaxies']}.hdf5"
+    sage_output_file = f"{workdir}/{sage_params_dict['FileNameGalaxies']}.hdf5"
     sim_counts = read_and_bin_sage_output(sage_output_file, bin_edges, sage_params_dict, snapshot=extra_params_dict['snapshot'])
     vol = float(sage_params_dict['BoxSize'])**3
     sim_numden = sim_counts*sage_params_dict['Hubble_h']**3/(vol*bin_widths)
@@ -435,7 +421,7 @@ def log_likelihood(theta, *args, **kwargs):
     # for x in zip(logmass, log_sim_numden, obs_numden, obs_numdenerr, chi):
     #     print(f"{x[0]:0.3e} {x[1]:0.2e} {x[2]:0.2e} {x[3]:0.2e} {x[4]:0.2e}")
 
-    shutil.rmtree(dirname)
+    # shutil.rmtree(dirname)
 
     # blobs = kwargs['default_blobs']
 
@@ -446,8 +432,18 @@ def log_likelihood(theta, *args, **kwargs):
     # blobs = [end-start, chisqr, sim_numden]
     # print(f"[On rank = {rank}] chisqr = {chisqr} chi = {chi} theta = {theta}.\n"\
     #       f"Time taken = {end - start:0.3e} sage runtime = {sage_end - sage_start:0.3e} seconds")
-
+    # end = time.time()
+    # logger.info(f"Done with likelihood. sage time = {sage_end - sage_start:0.3e} sec. Total time = {end - start:0.3e} sec")
     return -0.5*chisqr #, blobs
+
+
+def remove_temp_dirs(outputdir):
+    import shutil
+    import os
+    tmpdirs = [f.path for f in os.scandir(outputdir) if f.is_dir() and f.name.startswith('tmp')]
+    logger.info(f"Removing {len(tmpdirs)} temporary directories = {tmpdirs}")
+    for dir in tmpdirs:
+        shutil.rmtree(dir)
 
 
 def run_emcee(sage_template_param_fname, **kwargs):
@@ -459,12 +455,17 @@ def run_emcee(sage_template_param_fname, **kwargs):
 
     seed = kwargs.get('seed', 213589749325792)
 
+    rank = kwargs['rank']
+    ntasks = kwargs['ntasks']
+
     if rank == 0:
-        logger.info("Compiling SAGE python extension and importing it")
+        logger.info(f"[On {rank =}]: Compiling SAGE python extension and importing it")
         compile_sage_pythonext()
 
-    if comm:
-        logger.info(f"[On {rank = }]Waiting for rank=0 to be done with compiling")
+    if ntasks > 1:
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        logger.info(f"[On {rank = }]: Waiting at barrier for rank=0 to be done with compiling")
         comm.Barrier()
 
     outputdir = kwargs.get('outputdir', '.')
@@ -477,33 +478,12 @@ def run_emcee(sage_template_param_fname, **kwargs):
             pool.wait()
             sys.exit(0)
 
-
-        logger.info(f"On main rank: kwargs = {kwargs}")
+        logger.info(f"On main {rank = }: kwargs = {kwargs}")
         template_params_dict = read_sage_parameterfile(sage_template_param_fname)
 
         filename_suffix = '_'.join(sage_params_to_vary)
         filename_suffix += f"_z_{kwargs['wanted_redshift']}_nwalkers_{nwalkers}"
         emcee_output_filename = f"{outputdir}/sage_emcee_{filename_suffix}.hdf5"
-
-        backend = emcee.backends.HDFBackend(emcee_output_filename, name=filename_suffix)
-        resume_iter, do_burnin = False, True
-        try:
-            if backend.iteration > 100:
-                resume_iter = True
-        except FileNotFoundError:
-            do_burnin = True
-            pass
-
-        # Temporarily remove the burn-in = need to see why HDF saving is not working
-        do_burnin = False
-
-        rng = np.random.default_rng(seed)
-        loc = np.array([template_params_dict[k] for k in sage_params_to_vary], dtype=np.float64)
-        scale = 0.1*loc
-        if not resume_iter:
-            initial = rng.normal(loc=loc, scale=scale, size=(nwalkers, ndim))
-        nburn_in = kwargs.get('nburn_in', 200)
-        nsteps = 1000*nburn_in
 
         logmass, obs_numden, obs_numdenerr = get_observational_data_and_errors(float(kwargs['wanted_redshift']),
                                                                                float(template_params_dict['Hubble_h']),
@@ -515,7 +495,12 @@ def run_emcee(sage_template_param_fname, **kwargs):
         # however, only one h has been accounted for by astrodatapy
         # therefore, we need to divide by h to get the correct units
         logmass -= np.log10(float(template_params_dict['Hubble_h']))
-        logmass = np.sort(logmass)
+
+        xx = np.argsort(logmass)
+        logmass = logmass[xx]
+        obs_numden = obs_numden[xx]
+        obs_numdenerr = obs_numdenerr[xx]
+
         kwargs['logmass'] = logmass
         kwargs['obs_numden'] = obs_numden
         kwargs['obs_numdenerr'] = obs_numdenerr
@@ -542,6 +527,23 @@ def run_emcee(sage_template_param_fname, **kwargs):
         # print(f"len(default_blobs) = {len(default_blobs)}")
         # kwargs['default_blobs'] = default_blobs
 
+        backend = emcee.backends.HDFBackend(emcee_output_filename, name=filename_suffix)
+
+        rng = np.random.default_rng(seed)
+        loc = np.array([template_params_dict[k] for k in sage_params_to_vary], dtype=np.float64)
+        scale = 0.1*loc
+        initial = rng.normal(loc=loc, scale=scale, size=(nwalkers, ndim))
+
+        resume_iter = False
+        try:
+            if backend.iteration > 0:
+                resume_iter = True
+        except FileNotFoundError:
+            pass
+
+        nburn_in = kwargs.get('nburn_in', 200)
+        nsteps = 1000*nburn_in
+
         # We'll track how the average autocorrelation time estimate changes
         index = 0
         autocorr = np.empty(nsteps)
@@ -551,25 +553,26 @@ def run_emcee(sage_template_param_fname, **kwargs):
 
         # create the sampler
         sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, pool=pool, kwargs=kwargs, backend=backend)
-        state = initial
-        if do_burnin:
-            logger.info(f"[On rank = {rank}]: Starting burn-in phase")
-            burn_start = time.time()
-            state = sampler.run_mcmc(initial, nburn_in, progress=True)
-            burn_end = time.time()
-            sampler.reset()
-            logger.info(f"Done with burn-in phase with {nburn_in} steps. Time taken = {burn_end-burn_start:0.3e}")
+
+        # state = initial
+        # if do_burnin:
+        #     logger.info(f"[On rank = {rank}]: Starting burn-in phase")
+        #     burn_start = time.time()
+        #     state = sampler.run_mcmc(initial, nburn_in, progress=True)
+        #     burn_end = time.time()
+        #     sampler.reset()
+        #     logger.info(f"Done with burn-in phase with {nburn_in} steps. Time taken = {burn_end-burn_start:0.3e}")
 
         prod_start = time.time()
 
         if resume_iter:
-            logger.info("Resuming production phase")
-            state = None
+            initial = sampler.get_last_sample()
+            logger.info(f"Resuming production phase. {initial = }")
         else:
-            logger.info("Starting production phase")
+            logger.info(f"Starting production phase. {initial = }")
 
-        for _ in sampler.sample(state, iterations=nsteps, store=True, progress=True):
-            print("HERE: sampler.iteration = ", sampler.iteration, file=sys.stderr)
+        for sample in sampler.sample(initial, iterations=nsteps, store=True, progress=True):
+            print(f"[{rank = }]: iteration = {sampler.iteration}", file=sys.stderr)
             if sampler.iteration % 100:
                 continue
 
@@ -587,14 +590,14 @@ def run_emcee(sage_template_param_fname, **kwargs):
             if converged:
                 break
             old_tau = tau
-            # sampler.reset()
-            # end = time.time()
 
         prod_end = time.time()
         logger.info(f"Done with production phase with {sampler.iteration} steps. Time taken = {prod_end - prod_start:0.2e} sec")
         logger.info(f"Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
         logger.info(f"Mean autocorrelation time: {0:.3f} steps".format(np.mean(sampler.get_autocorr_time())))
 
+    # Only rank=0 reaches here
+    remove_temp_dirs(outputdir)
 
 if __name__ == "__main__":
     sage_params_to_vary = ['SfrEfficiency', 'ReIncorporationFactor', 'FeedbackReheatingEpsilon', 'RadioModeEfficiency']
@@ -602,10 +605,11 @@ if __name__ == "__main__":
     nwalkers = 1000
 
     sage_template_param_fname = "./mini-millennium.par"
-    outputdir = "./emcee_output/"
+    outputdir = "/fred/oz004/msinha/sage_mcmc_output/"
+
     seed = 2783946238
     catalog, target_redshift = 'Baldry+2012', 0.0
-    # catalog, target_redshift = 'Stefanon+2021', 6.0
+    catalog, target_redshift = 'Stefanon+2021', 6.0
     # catalog, target_redshift = 'Perez-Gonzalez+2008', 1.0
 
     catalogtype = 'GSMF'
@@ -615,7 +619,22 @@ if __name__ == "__main__":
     which_sim = "Mini-Millennium"
     firstfile = 0
     lastfile = 7
-    print(f"[On rank={rank} (out of {ntasks} tasks)]: Parallelism type = {pool_type}.")
+    rank = 0
+    ntasks = 1
+    try:
+        from mpi4py import MPI
+        pool_type = 'mpi4py'
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        ntasks = comm.Get_size()
+        logger.info(f"Running on with MPI on {rank = } (out of {ntasks} tasks)")
+    except ImportError:
+        import multiprocessing
+        ntasks = multiprocessing.cpu_count()
+        pool_type = 'multiprocessing'
+
+    # logger.info(f"After try-mpi: {rank = }. Created {workdir = }")
+    logger.info(f"[On rank={rank}]: (out of {ntasks} tasks)]: Parallelism type = {pool_type}.")
     run_emcee(sage_template_param_fname=sage_template_param_fname, sage_params_to_vary=sage_params_to_vary,
               wanted_redshift=target_redshift, catalog=catalog, catalogtype=catalogtype, IMF=IMF, catalog_xlimits=catalog_xlimits,
               seed=seed, outputdir=outputdir,
