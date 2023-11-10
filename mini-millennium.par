@@ -1,0 +1,147 @@
+%------------------------------------------
+%----- SAGE output file information -------
+%------------------------------------------
+
+FileNameGalaxies       test_emcee_sage
+OutputDir              ./tests/test_data/
+
+FirstFile         0
+LastFile          7
+
+
+%------------------------------------------
+%----- Snapshot output list ---------------
+%------------------------------------------
+
+% sets the desired number of galaxy outputs; use -1 for all outputs
+NumOutputs        -1
+
+% List your output snapshots after the arrow, highest to lowest (ignored when NumOutputs=-1).
+%NumOutputs "63 37 32 27 23 20 18 16"
+
+% sets the desired output format. Either 'sage_binary' or 'sage_hdf5'.
+OutputFormat      sage_hdf5
+
+%------------------------------------------
+%----- Simulation information  ------------
+%------------------------------------------
+
+% assumes the trees are named TreeName.n where n is the file number
+TreeName              trees_063
+
+% either 'lhalo_hdf5' or 'lhalo_binary'
+TreeType              lhalo_binary
+
+% Number of files the trees are split over. This can be different to `FirstFile` -> `LastFile` range.
+NumSimulationTreeFiles 8
+
+SimulationDir         ./tests/test_data/
+FileWithSnapList      ./tests/test_data/millennium.a_list
+LastSnapShotNr        63
+
+Omega           0.25
+OmegaLambda     0.75
+BaryonFrac      0.17
+Hubble_h        0.73
+BoxSize         62.5 % Size of the simulation box in Mpc/h.
+
+PartMass        0.0860657
+
+
+%------------------------------------------
+%----- SAGE recipe options ----------------
+%------------------------------------------
+
+ %0: original Croton et al. 2006
+SFprescription        0
+
+ %0: switch off; 1: empirical model; 2: Bondi-Hoyle model; 3: cold cloud accretion model
+AGNrecipeOn           2
+
+%0: switch off
+SupernovaRecipeOn     1
+
+%0: switch off
+ReionizationOn        1
+
+%0: switch off; 1: bulge and BH growth through instabilities w. instability starbursts
+DiskInstabilityOn     1
+
+%------------------------------------------
+%----- SAGE model parameters --------------
+%------------------------------------------
+
+%efficiency of SF (SFprescription=0)
+SfrEfficiency           0.05
+
+ %mass of cold gas reheated due to SF (see Martin 1999) (SupernovaRecipeOn=1)
+FeedbackReheatingEpsilon    3.0
+
+%mixing efficiency of SN energy with hot gas to unbind and eject some (SupernovaRecipeOn=1)
+FeedbackEjectionEfficiency  0.3
+
+%fraction of ejected mass reincorporated per dynamical time to hot
+ReIncorporationFactor   0.15
+
+%AGN radio mode efficiency (AGNrecipeOn=2)
+RadioModeEfficiency     0.08
+
+%AGN quasar mode wind heating efficiency (AGNrecipeOn>0)
+QuasarModeEfficiency    0.005
+
+%fraction of cold gas added to the BH during mergers (AGNrecipeOn>0)
+BlackHoleGrowthRate     0.015
+
+%major merger when mass ratio greater than this
+ThreshMajorMerger       0.3
+
+%Mvir-to-baryonic mass ratio threshold for satellite merger or disruption
+ThresholdSatDisruption  1.0
+
+%fraction of SF mass produced as metals
+Yield                   0.025
+
+%fraction of SF mass instantaneously recycled back to cold
+RecycleFraction         0.43
+
+%fraction of metals produced directly to hot component
+FracZleaveDisk          0.0
+
+%these parameter choices give the best fit to Genedin (2000)...
+Reionization_z0         8.0
+
+%using the analytic fit of Kravtsov et al. 2004 (ReionizationOn=1)
+Reionization_zr         7.0
+
+%energy per supernova
+EnergySN                1.0e51
+
+%supernova efficiency
+EtaSN                   5.0e-3
+
+
+%------------------------------------------
+%----- Other code-related information -----
+%------------------------------------------
+
+%% The following two parameters determine how forests are distributed over MPI tasks
+%% The scheme determines the computing cost for processing each forest
+%% uniform_in_forests -> every forest has the same cost, regardless of the size of the forest
+%% linear_in_nhalos -> the cost scales linearly with the forest size
+%% quadratic_in_nhalos -> the cost scales quadratically with forest size
+%% exponent_in_nhalos -> the cost scales to some (integer) power of forest size, the exponent is given by the (integral) value of 'ExponentForestDistributionScheme'
+%% generic_power_in_nhalos -> the cost is directly scaled by  pow(forest size, 'ExponentForestDistributionScheme')
+ForestDistributionScheme                    generic_power_in_nhalos
+
+% only relevant for the last two schemes
+ExponentForestDistributionScheme            0.7
+
+
+%WATCH OUT: Mpc/h
+UnitLength_in_cm          3.08568e+24
+
+%WATCH OUT: 10^10Msun
+UnitMass_in_g             1.989e+43
+
+%WATCH OUT: km/s
+UnitVelocity_in_cm_per_s  100000
