@@ -271,7 +271,8 @@ def set_sage_params(**kwargs):
         raise ValueError(f"which_sim = {which_sim} not in {allsims.keys()}")
 
     sim_dict = allsims[which_sim]
-    firstfile, lastfile = kwargs['firstfile'], kwargs['lastfile']
+    firstfile = kwargs.get('firstfile', sim_dict['FirstFile'])
+    lastfile  = kwargs.get('lastfile', sim_dict['LastFile'])
     if firstfile < sim_dict['FirstFile'] or lastfile > sim_dict['LastFile']:
         msg = f"For sim = {which_sim}, the parameters firstfile = {firstfile} or lastfile = {lastfile} must be in range of [{sim_dict['FirstFile']}, {sim_dict['LastFile']}]"
         raise ValueError(msg)
@@ -607,31 +608,45 @@ def run_emcee(sage_template_param_fname, sage_libpath=None, **kwargs):
 
 if __name__ == "__main__":
     sage_params_to_vary = ['SfrEfficiency', 'ReIncorporationFactor', 'FeedbackReheatingEpsilon', 'RadioModeEfficiency']
-    # nwalkers = (ntasks-1)*100 if ntasks >= 10 else 1000
     nwalkers = 1000
+    seed = 2783946238
+    verbose = True
 
-    sage_template_param_fname = "./mini-millennium.par"
+    sage_template_param_fname = "./mini-millennium.par"  # comes with the repo and contains the default params (the ones not being varied)
+    sage_libpath = None # set to the root directory containing source code and sage.py (usually '../sage-model')
+
+    # the hdf5 file containing the emcee ouput will be here. Temp workdirs are created *per* MPI task
+    # within this outputdir and (should be?) are deleted once the job completes. If the job errors out
+    # then you will have to manually delete the tmp* directories within the outputdir. (Just be careful
+    # that you might accidentally delete tmp directories another running MCMC job outputting to this same
+    # outputdir - should be obvious how I figured that one out: MS 23rd Nov, 2023)
     outputdir = "/fred/oz004/msinha/sage_mcmc_output/"
 
-    seed = 2783946238
+
+    ## simulation specific details
+    ## all files are used by default (if firstfile and lastfile are set to None)
+    which_sim = "Mini-Millennium"
+    firstfile = 0
+    lastfile = 7
+
+    ## observational data specifications (passed to astrodatapy)
     catalog, target_redshift = 'Baldry+2012', 0.0
     # catalog, target_redshift = 'Stefanon+2021', 6.0
     # catalog, target_redshift = 'Perez-Gonzalez+2008', 1.0
     # catalog, target_redshift = 'Huertas-Company+2016', 2.0
-    catalog, target_redshift = 'Qin+2017_Tiamat125_HR', 2.0
-    catalog, target_redshift = 'Grazian+2015', 4.0
+    # catalog, target_redshift = 'Qin+2017_Tiamat125_HR', 2.0
+    # catalog, target_redshift = 'Grazian+2015', 4.0
 
     catalogtype = 'GSMF'
+    IMF = 'Chabrier'
+
+    # What are the limits for meaningful range of X-axis (i.e., stellar mass)
+    # considering both the target redshift and the simulation being used
     catalog_xlimits = {'StellarMass': [7.0, 12.0]}
 
-    IMF = 'Chabrier'
-    which_sim = "Mini-Millennium"
-    firstfile = 0
-    lastfile = 7
+    ## You should not need to modify anything below
     rank = 0
     ntasks = 1
-    verbose = True
-    sage_libpath = None # set to the root directory containing source code and sage.py (usually '../sage-model')
     try:
         from mpi4py import MPI
         pool_type = 'mpi4py'
