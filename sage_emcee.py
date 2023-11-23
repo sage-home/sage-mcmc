@@ -161,7 +161,7 @@ def _get_obsdata_from_name(obs, catalogname, return_errors=True):
     datatype = obs.target_observation['DataType'][idx]
     if datatype != 'data':
         msg = f"Error: catalog = {catalogname} does not seem to contain observational data (catalog type = {datatype}))"
--       raise ValueError(msg)
+        raise ValueError(msg)
 
     with np.errstate(divide='ignore'):
         data[:,1:] = np.log10(data[:,1:])
