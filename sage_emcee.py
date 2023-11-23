@@ -15,19 +15,31 @@ sys.path.insert(0, '/home/msinha/research/codes/sage-home/sage-model/')
 def add_local_sage_path(sage_libpath=None):
     import os
     import sys
+    sage_pylib_fname = "sage.py"
     if not sage_libpath:
-        sage_libpath = os.path.abspath(os.path.abspath(__file__) + "/../sage-model")
+        sage_libpath = os.path.abspath(os.path.join(os.path.dirname(__file__), '../sage-model'))
+
+    print(f"{sage_libpath = }")
+    # Check that `sage.py` is in sage_libpath
+    try:
+        f = open(f"{sage_libpath}/{sage_pylib_fname}", 'r')
+    except FileNotFoundError:
+        msg = f"{sage_pylib_fname} not found in directory: {sage_libpath}. Please pass the directory "
+        msg += "where the source code for 'sage_model' in located."
+        raise ValueError(msg)
+    else:
+        f.close()
 
     logger.info(f"Adding sage library path = {sage_libpath}")
     sys.path.insert(0, sage_libpath)
 
-def compile_sage_pythonext(sage_libpath=None):
+def compile_sage_pythonext(sage_libpath=None, verbose=True):
     ## assumes that the root of the sage repo is in PATH
     ## **and** sage.py is in the root of the sage repo
     add_local_sage_path(sage_libpath)
     from sage import build_sage_pyext
     logger.info("Building SAGE python extension")
-    build_sage_pyext(use_from_mcmc=True, verbose=True)
+    build_sage_pyext(use_from_mcmc=True, verbose=verbose)
     logger.info("Finished building SAGE python extension")
     import _sage_cffi
     logger.info("Finished importing SAGE python extension")
@@ -149,7 +161,7 @@ def _get_obsdata_from_name(obs, catalogname, return_errors=True):
     datatype = obs.target_observation['DataType'][idx]
     if datatype != 'data':
         msg = f"Error: catalog = {catalogname} does not seem to contain observational data (catalog type = {datatype}))"
-        raise ValueError(msg)
+-       raise ValueError(msg)
 
     with np.errstate(divide='ignore'):
         data[:,1:] = np.log10(data[:,1:])
@@ -164,12 +176,12 @@ def _get_obsdata_from_name(obs, catalogname, return_errors=True):
     if return_errors:
         obs_numdenerr = np.abs(yhi - ylow)*0.5
         obs_numden = (yhi + ylow)*0.5
-        return mass, obs_numden, obs_numdenerr
+        return mass, obs_numden, obs_numdenerr, datatype
 
     # xlabel  = r"$\log_{10}[M_*/{\rm M_{\odot}}]$"
     # ylabel  = r"$\log_{10}[\rm \phi/Mpc^{-3} dex^{-1}]$"
 
-    return mass, y, yhi, ylow
+    return mass, y, yhi, ylow, datatype
 
 
 @functools.cache
@@ -353,7 +365,7 @@ def log_priors(theta, **kwargs):
 
     return 0.0
 
-@functools.cache
+@functools.cache # Caching is important -> we keep reusing the same directory
 def create_workdir(outputdir):
     return mkdtemp(dir=outputdir)
 
@@ -437,16 +449,10 @@ def log_likelihood(theta, *args, **kwargs):
     return -0.5*chisqr #, blobs
 
 
-def remove_temp_dirs(outputdir):
-    import shutil
-    import os
-    tmpdirs = [f.path for f in os.scandir(outputdir) if f.is_dir() and f.name.startswith('tmp')]
-    logger.info(f"Removing {len(tmpdirs)} temporary directories = {tmpdirs}")
-    for dir in tmpdirs:
-        shutil.rmtree(dir)
+def run_emcee(sage_template_param_fname, sage_libpath=None, **kwargs):
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
 
-
-def run_emcee(sage_template_param_fname, **kwargs):
     kwargs['sage_template_param_fname'] = sage_template_param_fname
 
     sage_params_to_vary = kwargs.get('sage_params_to_vary', None)
@@ -460,13 +466,12 @@ def run_emcee(sage_template_param_fname, **kwargs):
 
     if rank == 0:
         logger.info(f"[On {rank =}]: Compiling SAGE python extension and importing it")
-        compile_sage_pythonext()
+        compile_sage_pythonext(sage_libpath=sage_libpath, verbose=verbose)
 
+    kwargs.pop('sage_libpath', None)
     if ntasks > 1:
-        from mpi4py import MPI
-        comm = MPI.COMM_WORLD
         logger.info(f"[On {rank = }]: Waiting at barrier for rank=0 to be done with compiling")
-        comm.Barrier()
+        comm.Barrier() # Make sure all MPI ranks execute this Barrier statement (otherwise code will hang)
 
     outputdir = kwargs.get('outputdir', '.')
     nwalkers = kwargs.get('nwalkers', 1000)
@@ -476,6 +481,8 @@ def run_emcee(sage_template_param_fname, **kwargs):
     with MPIPool() as pool:
         if not pool.is_master():
             pool.wait()
+            workdir = create_workdir(outputdir)
+            shutil.rmtree(workdir)
             sys.exit(0)
 
         logger.info(f"On main {rank = }: kwargs = {kwargs}")
@@ -485,7 +492,7 @@ def run_emcee(sage_template_param_fname, **kwargs):
         filename_suffix += f"_z_{kwargs['wanted_redshift']}_nwalkers_{nwalkers}"
         emcee_output_filename = f"{outputdir}/sage_emcee_{filename_suffix}.hdf5"
 
-        logmass, obs_numden, obs_numdenerr = get_observational_data_and_errors(float(kwargs['wanted_redshift']),
+        logmass, obs_numden, obs_numdenerr, datatype = get_observational_data_and_errors(float(kwargs['wanted_redshift']),
                                                                                float(template_params_dict['Hubble_h']),
                                                                                data_identifier=kwargs['catalog'],
                                                                                IMF_out=kwargs['IMF'],
@@ -567,6 +574,7 @@ def run_emcee(sage_template_param_fname, **kwargs):
 
         if resume_iter:
             initial = sampler.get_last_sample()
+            logger.info(f"Got last sample from reader. {type(initial) = }")
             logger.info(f"Resuming production phase. {initial = }")
         else:
             logger.info(f"Starting production phase. {initial = }")
@@ -596,8 +604,6 @@ def run_emcee(sage_template_param_fname, **kwargs):
         logger.info(f"Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
         logger.info(f"Mean autocorrelation time: {0:.3f} steps".format(np.mean(sampler.get_autocorr_time())))
 
-    # Only rank=0 reaches here
-    remove_temp_dirs(outputdir)
 
 if __name__ == "__main__":
     sage_params_to_vary = ['SfrEfficiency', 'ReIncorporationFactor', 'FeedbackReheatingEpsilon', 'RadioModeEfficiency']
@@ -609,8 +615,11 @@ if __name__ == "__main__":
 
     seed = 2783946238
     catalog, target_redshift = 'Baldry+2012', 0.0
-    catalog, target_redshift = 'Stefanon+2021', 6.0
+    # catalog, target_redshift = 'Stefanon+2021', 6.0
     # catalog, target_redshift = 'Perez-Gonzalez+2008', 1.0
+    # catalog, target_redshift = 'Huertas-Company+2016', 2.0
+    catalog, target_redshift = 'Qin+2017_Tiamat125_HR', 2.0
+    catalog, target_redshift = 'Grazian+2015', 4.0
 
     catalogtype = 'GSMF'
     catalog_xlimits = {'StellarMass': [7.0, 12.0]}
@@ -621,6 +630,8 @@ if __name__ == "__main__":
     lastfile = 7
     rank = 0
     ntasks = 1
+    verbose = True
+    sage_libpath = None # set to the root directory containing source code and sage.py (usually '../sage-model')
     try:
         from mpi4py import MPI
         pool_type = 'mpi4py'
@@ -635,7 +646,7 @@ if __name__ == "__main__":
 
     # logger.info(f"After try-mpi: {rank = }. Created {workdir = }")
     logger.info(f"[On rank={rank}]: (out of {ntasks} tasks)]: Parallelism type = {pool_type}.")
-    run_emcee(sage_template_param_fname=sage_template_param_fname, sage_params_to_vary=sage_params_to_vary,
+    run_emcee(sage_template_param_fname, sage_libpath=sage_libpath, verbpse=verbose, sage_params_to_vary=sage_params_to_vary,
               wanted_redshift=target_redshift, catalog=catalog, catalogtype=catalogtype, IMF=IMF, catalog_xlimits=catalog_xlimits,
               seed=seed, outputdir=outputdir,
               which_sim=which_sim, firstfile=firstfile, lastfile=lastfile,
