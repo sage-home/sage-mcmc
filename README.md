@@ -1,5 +1,37 @@
 # sage-mcmc
-MCMC with sage
+Use MCMC with sage to explore the parameter regions that can reasonably reproduce statistical galaxy properties. Currently, we use [astrodatapy](https://github.com/qyx268/astrodatapy/) for the observational constraints at different redshifts. Only the Galaxy Stellar Mass Function ('GSMF') data is used to constrain the galaxy model, but likely will need other stats in the future. 
+
+## Key parameters
+In order the begin, a new MCMC + sage run, you will need to decide on the following parameters:
+
+```python
+    sage_params_to_vary = ['SfrEfficiency', 'ReIncorporationFactor', 'FeedbackReheatingEpsilon', 'RadioModeEfficiency'] # which SAGE model params to vary
+    nwalkers = 1000 # number of walkers in emcee
+    sage_template_param_fname = "./mini-millennium.par" # the template parameter file (containing the default SAGE parameters)
+    sage_libpath = None # set to the root directory containing source code and sage.py (usually '../sage-model')
+    outputdir = "<output dir>"  # output directory
+
+    # random number seed - for reproducibility
+    seed = 2783946238
+
+    ## Observational data variables
+    catalog, target_redshift = 'Baldry+2012', 0.0
+    catalogtype = 'GSMF'
+    catalog_xlimits = {'StellarMass': [7.0, 12.0]}
+    IMF = 'Chabrier'
+
+    ## simulation parameters -> you will need to add your own simulation key
+    ## within the "set_all_simulations" function at the top of sage-emcee.py
+    which_sim = "Mini-Millennium"   # Use the Mini-Millennium simulation
+
+    ## Use these two to work on a fraction of the entire simulation. (all files are used by default)
+    firstfile = 0  # the first tree file to use (from the mini-millennium simulation, in this case)
+    lastfile = 7.  # the last tree file to use (from the mini-millennium simulation, in this case)
+
+    ## whether to output some info messages during sage compilation
+    verbose = True
+```
+
 
 
 ## Steps to run sage-mcmc on OzSTAR supercomputer:
