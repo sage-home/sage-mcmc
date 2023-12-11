@@ -64,7 +64,8 @@ The final list of loaded modules should look like (the order is not, or at least
     - `astrodatapy` using `python -m pip install git+https://github.com/qyx268/astrodatapy`
     - You might need to set `export PIP_REQUIRE_VIRTUALENV=FALSE` to install the packages
 - Change the values at the bottom of ``sage-emcee.py`` to suit your needs. For example, set the target redshift, and the observational GSMF data used to constrain the target redshift. Currently, `sage-MCMC` only works with `GSMF` constraints, but further constraints need to be added to better rule parameter space
-- Adapt the ``sage-emcee.slurm`` script to suit your needs (this should be placed in the `sage-mcmc` directory)
+- Do a test run with `mpirun -np 2 python ./sage_emcee.py` - be sure to confirm that `sage-model` is being compiled with `mpicc` (otherwise, the parallel run will be corrupted). It should happen automatically (regardless of the content s of the `Makefile` within the `sage-model` directory) - however, if you have issues, then set `USE-MPI=yes`  within `sage-model/Makefile`
+- (On OzSTAR): If you are ready to submit jobs to the cluster queue, then create a new file called ``sage-mcmc/sage-emcee.slurm`` script, and then edit the job-name, mail-user, and the number of nodes (with the `#SBATCH -N` line) to suit your needs:
 ```
 #!/bin/bash -l
 #SBATCH --job-name=<JOBNAME>
@@ -85,8 +86,8 @@ ml
 srun python ./sage_emcee.py
 ```
 
-- Do a test run with `mpirun -np 2 python ./sage_emcee.py` - be sure to confirm that `sage-model` is being compiled with `mpicc` (otherwise, the parallel run will be corrupted). It should happen automatically (regardless of the contents of the `Makefile` within the `sage-model` directory) - however, if you have issues, then set `USE-MPI=yes`  within `sage-model/Makefile`
 - Change directory into `sage-mcmc`, and submit the parallel job as `sbatch sage-emcee.slurm`
+    - The job will automatically stop when the chain has converged, so there will be no wasted cluster time if you request a larger wallclock (however, your wait time might be longer)
 - Look at the output directory to confirm that the output hdf5 file is generated. This output will be in an hdf5 file called: `sage_emcee_{VARYING_SAGE_PARAMS}_z_<target_redshift>_nwalkers_<nwalkers>.hdf5`. The chain is saved under a special name (think hdf5 dataset) that without the prefix `sage_emcee` or the suffix `.hdf5`. 
 - Analyse data with `plot_chains.ipynb` - set the chain name and hte  directory containing the chain results. The chain filename will be automatically reconstructed from the chain name. If you change the filename generation within `sage_emcee`, then you will have to change that within `plot_chains.ipynb`
 
