@@ -59,7 +59,9 @@ The final list of loaded modules should look like (the order is not, or at least
     - `git clone git@github.com:sage-home/sage-model.git`
     - `git clone git@github.com:sage-home/sage-mcmc.git`
    
-- Install `schwimmbad` and `emcee` (in that order) using `python -m pip install <pkgname>`
+- Install dependencies
+    - `schwimmbad` and `emcee` (in that order) using `python -m pip install <pkgname>`
+    - `astrodatapy` using `python -m pip install git+https://github.com/qyx268/astrodatapy`
     - You might need to set `export PIP_REQUIRE_VIRTUALENV=FALSE` to install the packages
 - Change the values at the bottom of ``sage-emcee.py`` to suit your needs. For example, set the target redshift, and the observational GSMF data used to constrain the target redshift. Currently, `sage-MCMC` only works with `GSMF` constraints, but further constraints need to be added to better rule parameter space
 - Adapt the ``sage-emcee.slurm`` script to suit your needs (this should be placed in the `sage-mcmc` directory)
