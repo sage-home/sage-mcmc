@@ -56,10 +56,10 @@ The final list of loaded modules should look like (the order is not, or at least
 
 - Save these modules under the name ``sage-emcee`` using `ml save sage-emcee`
 - Create a sage-home directory and from this directory, run the following commands to clone the two repos
-    - `git clone git@github.com:sage-home/sage-model`
-    - `git clone git@github.com:sage-home/sage-mcmc`
+    - `git clone git@github.com:sage-home/sage-model.git`
+    - `git clone git@github.com:sage-home/sage-mcmc.git`
    
-- Install emcee, schwimbadd (python -m pip install pkgname)
+- Install `schwimmbad` and `emcee` (in that order) using `python -m pip install <pkgname>`
     - You might need to set `export PIP_REQUIRE_VIRTUALENV=FALSE` to install the packages
 - Change the values at the bottom of ``sage-emcee.py`` to suit your needs. For example, set the target redshift, and the observational GSMF data used to constrain the target redshift. Currently, `sage-MCMC` only works with `GSMF` constraints, but further constraints need to be added to better rule parameter space
 - Adapt the ``sage-emcee.slurm`` script to suit your needs (this should be placed in the `sage-mcmc` directory)
