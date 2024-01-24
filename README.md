@@ -56,8 +56,8 @@ The final list of loaded modules should look like (the order is not, or at least
 
 - Save these modules under the name ``sage-emcee`` using `ml save sage-emcee`
 - Create a sage-home directory and from this directory, run the following commands to clone the two repos
-    - `git clone git@github.com:sage-home/sage-model.git`
-    - `git clone git@github.com:sage-home/sage-mcmc.git`
+    - `git clone https://github.com:sage-home/sage-model.git`
+    - `git clone https://github.com:sage-home/sage-mcmc.git`
    
 - Install dependencies
     - `schwimmbad` and `emcee` (in that order) using `python -m pip install <pkgname>`
