@@ -73,7 +73,7 @@ The final list of loaded modules should look like (the order is not, or at least
 #SBATCH --mail-type=ALL
 #SBATCH --time=24:00:00
 #SBATCH -N <number of nodes>
-#SBATCH --ntasks-per-node=32
+#SBATCH --ntasks=<number of parallel tasks, say 512 or 1024>
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G
 #SBATCH --export==NONE
