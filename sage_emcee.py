@@ -653,13 +653,21 @@ if __name__ == "__main__":
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
         ntasks = comm.Get_size()
-        logger.info(f"Running on with MPI on {rank = } (out of {ntasks} tasks)")
+        ## Half the walkers are idle in one-half of the step
+        ## One task serves as the controller and therefore does not participate in running sage
+        ## We are aiming for a case where each CPU (out of ntasks-1 total) has an active walker
+        ## (nwalkers//2 out of total nwalkers)
+        if (nwalkers//2 < (ntasks - 1)):
+            logger.error(f"Error: Number of walkers (={nwalkers}) must be at least twice the number of cores requested (={ntasks})")
+            comm.Abort()
+
+        logger.info(f"Running on with MPI on {rank = } (out of {ntasks} tasks. {nwalkers = })")
     except ImportError:
         import multiprocessing
         ntasks = multiprocessing.cpu_count()
         pool_type = 'multiprocessing'
 
-    # logger.info(f"After try-mpi: {rank = }. Created {workdir = }")
+    # logger.info(f"After try-mpi: {rank = }.")
     logger.info(f"[On rank={rank}]: (out of {ntasks} tasks)]: Parallelism type = {pool_type}.")
     run_emcee(sage_template_param_fname, sage_libpath=sage_libpath, verbpse=verbose, sage_params_to_vary=sage_params_to_vary,
               wanted_redshift=target_redshift, catalog=catalog, catalogtype=catalogtype, IMF=IMF, catalog_xlimits=catalog_xlimits,
