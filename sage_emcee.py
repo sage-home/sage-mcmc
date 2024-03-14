@@ -657,8 +657,14 @@ if __name__ == "__main__":
         ## One task serves as the controller and therefore does not participate in running sage
         ## We are aiming for a case where each CPU (out of ntasks-1 total) has an active walker
         ## (nwalkers//2 out of total nwalkers)
-        if (nwalkers//2 < (ntasks - 1)):
-            logger.error(f"Error: Number of walkers (={nwalkers}) must be at least twice the number of cores requested (={ntasks})")
+        ## MS: 14th Mar, 2024: Looks like for optimal running, the threshold has to be more
+        ## conservative. For example, I ran a 4000 walkers with 128 cores and that was fine
+        ## but running a 4000 walkers with 1024 cores was *NOT* fine. Here fine means that
+        ## all tasks (except for the controller task) are running sage and the tasks are
+        ## distributed across all the compute nodes.
+        threshold_factor_for_nwalkers = 5
+        if (nwalkers < threshold_factor_for_nwalkers*ntasks):
+            logger.error(f"Error: Number of walkers (={nwalkers}) must be at least {threshold_factor_for_nwalkers} times the number of cores requested (={ntasks})")
             comm.Abort()
 
         logger.info(f"Running on with MPI on {rank = } (out of {ntasks} tasks. {nwalkers = })")
