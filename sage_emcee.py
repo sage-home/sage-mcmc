@@ -55,13 +55,13 @@ def set_all_simulations():
                                    'OmegaBaryon':0.045,
                                    'Partmass':8.6e8, #Msun/h
                                    'Npart': 2160**3,
-                                   'SimulationDir':"/fred/oz004/msinha/simulations/Millennium",
+                                   'SimulationDir':"/fred/oz004/simulations/Millennium",
                                    'TreeType':"lhalo_binary",
                                    'TreeName':"trees_063",
                                    'FirstFile': 0,
                                    'LastFile': 511,
                                    'NumSimulationTreeFiles':512,
-                                   'FileWithSnapList':'/fred/oz004/msinha/simulations/Millennium/millennium.alist',
+                                   'FileWithSnapList':'/fred/oz004/simulations/Millennium/millennium.alist',
                                    'LastSnapShotNr': 63,
                                    'Softening':5.0*1e-3, #kpc/h->Mpc/h
                                    'scale_factors':[0.0078125,0.012346,0.019608,0.032258,0.047811,0.051965,0.056419,0.061188,0.066287,0.071732,0.077540,0.083725,0.090306,0.097296,0.104713,0.112572,0.120887,0.129675,0.138950,0.148724,0.159012,0.169824,0.181174,0.193070,0.205521,0.218536,0.232121,0.246280,0.261016,0.276330,0.292223,0.308691,0.325730,0.343332,0.361489,0.380189,0.399419,0.419161,0.439397,0.460105,0.481261,0.502839,0.524807,0.547136,0.569789,0.592730,0.615919,0.639314,0.662870,0.686541,0.710278,0.734031,0.757746,0.781371,0.804849,0.828124,0.851138,0.873833,0.896151,0.918031,0.939414,0.960243,0.980457,1.000000],
@@ -74,13 +74,13 @@ def set_all_simulations():
                                         'Partmass':8.6e8, #Msun/h
                                         'Npart': 270**3,
                                         'Softening':5.0*1e-3, #kpc/h->Mpc/h
-                                        'SimulationDir':"/fred/oz004/msinha/simulations/mini-Millennium/",
+                                        'SimulationDir':"/fred/oz004/simulations/mini-Millennium/",
                                         'TreeType':"lhalo_binary",
                                         'TreeName':"trees_063",
                                         'FirstFile': 0,
                                         'LastFile': 7,
                                         'NumSimulationTreeFiles':8,
-                                        'FileWithSnapList':'/fred/oz004/msinha/simulations/mini-Millennium/millennium.a_list',
+                                        'FileWithSnapList':'/fred/oz004/simulations/mini-Millennium/millennium.a_list',
                                         'LastSnapShotNr': 63,
                                         'scale_factors':[0.0078125,0.012346,0.019608,0.032258,0.047811,0.051965,0.056419,0.061188,0.066287,0.071732,0.077540,0.083725,0.090306,0.097296,0.104713,0.112572,0.120887,0.129675,0.138950,0.148724,0.159012,0.169824,0.181174,0.193070,0.205521,0.218536,0.232121,0.246280,0.261016,0.276330,0.292223,0.308691,0.325730,0.343332,0.361489,0.380189,0.399419,0.419161,0.439397,0.460105,0.481261,0.502839,0.524807,0.547136,0.569789,0.592730,0.615919,0.639314,0.662870,0.686541,0.710278,0.734031,0.757746,0.781371,0.804849,0.828124,0.851138,0.873833,0.896151,0.918031,0.939414,0.960243,0.980457,1.000000],
                         },
